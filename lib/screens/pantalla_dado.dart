@@ -142,18 +142,8 @@ class _EstadoPantallaDado extends State<PantallaDado> with TickerProviderStateMi
 
   // _construirImagenDado2D: Construye y devuelve el widget que muestra la imagen SVG del dado.
   Widget _construirImagenDado2D() {
-    String svgPath; // Variable para almacenar la ruta al archivo SVG correcto.
-
-    // Determinar qué SVG mostrar:
-    // Si se ganó (_ganoEnUltimoLanzamiento es true) Y el resultado fue 6,
-    // entonces se usa el SVG especial del dado 6 con puntos dorados.
-    // En cualquier otro caso, se usa el SVG normal correspondiente al _resultadoDado.
-    if (_ganoEnUltimoLanzamiento && _resultadoDado == 6) {
-      svgPath = 'assets/images/dice_6.svg'; // Asegúrate que este archivo exista.
-    } else {
-      // Para los nombres de archivo como 'dice_1.svg', 'dice_2.svg', etc.
-      svgPath = 'assets/images/dice_$_resultadoDado.svg'; // Asegúrate que estos archivos existan.
-    }
+    // Construir la ruta del archivo SVG basada en el resultado del dado.
+    final svgPath = 'assets/images/dice_$_resultadoDado.svg';
 
     return RotationTransition(
       turns: _shakeAnimation, // Aplica la animación de sacudida a la imagen del dado.

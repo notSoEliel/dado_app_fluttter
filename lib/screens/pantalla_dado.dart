@@ -217,68 +217,94 @@ class _EstadoPantallaDado extends State<PantallaDado> with TickerProviderStateMi
               height: double.infinity,
               decoration: _crearDecoracionFondo(), // Aplica la decoración actual (gris o dorada).
               // El contenido de la pantalla va DENTRO del Container que se anima.
+              // El child del AnimatedSwitcher (y por ende del Container con el fondo) es el contenido principal de la pantalla.
               child: SafeArea(
-                child: Center(
+                // SafeArea asegura que el contenido no sea obstruido por elementos del sistema
+                // como el notch del teléfono, la barra de estado o los gestos de navegación.
+                child: Center( // Centra a su hijo (Column) en el espacio disponible del SafeArea.
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    // Column organiza a sus hijos en una lista vertical.
+                    mainAxisAlignment: MainAxisAlignment.center, // Alinea los hijos verticalmente en el centro de la Column.
                     children: <Widget>[
+                      // Spacer es un widget flexible que ocupa el espacio disponible,
+                      // útil para empujar otros widgets o distribuir espacio. Aquí empuja el contenido hacia el centro.
                       const Spacer(),
+
+                      // Container que muestra el número resultante del dado.
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: colorBlancoSemiOpaco,
-                          borderRadius: BorderRadius.circular(15),
-                          boxShadow: [
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12), // Espacio interno.
+                        decoration: BoxDecoration( // Estilo visual del contenedor.
+                          color: colorBlancoSemiOpaco, // Color de fondo (definido en el build).
+                          borderRadius: BorderRadius.circular(15), // Bordes redondeados.
+                          boxShadow: [ // Sombra para dar efecto de profundidad.
                             BoxShadow(
-                              color: colorSombraNegra,
-                              spreadRadius: 1, blurRadius: 8, offset: const Offset(0, 4),
+                              color: colorSombraNegra, // Color de la sombra (definido en el build).
+                              spreadRadius: 1, // Cuánto se expande la sombra.
+                              blurRadius: 8,   // Cuán difuminada es la sombra.
+                              offset: const Offset(0, 4), // Desplazamiento de la sombra (horizontal, vertical).
                             ),
                           ],
                         ),
+                        // Texto que muestra el número del dado o "?" si está lanzando.
                         child: Text(
                           _estaLanzando ? "?" : '$_resultadoDado',
-                          style: cupertinoTheme.textTheme.navLargeTitleTextStyle.copyWith(
-                                fontSize: 40,
+                          style: cupertinoTheme.textTheme.navLargeTitleTextStyle.copyWith( // Estilo del texto.
+                                fontSize: 40, // Tamaño de fuente personalizado.
+                                // Color del número: dorado si ganó, sino el color de texto por defecto.
                                 color: _ganoEnUltimoLanzamiento ? AppColors.diceNumberGold : AppColors.textDefault,
                               ),
                         ),
                       ),
-                      const SizedBox(height: 40),
-                      Expanded(flex: 3, child: _construirImagenDado2D()),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 40), // Un espacio vertical fijo de 40 píxeles.
+
+                      // Expanded hace que su hijo (_construirImagenDado2D) ocupe el espacio vertical disponible
+                      // dentro de la Column, según su factor de 'flex'.
+                      Expanded(
+                        flex: 3, // Proporción del espacio que este Expanded debe ocupar en relación a otros Expanded.
+                        child: _construirImagenDado2D() // Widget que muestra la imagen del dado.
+                      ),
+                      const SizedBox(height: 20), // Otro espacio vertical fijo.
+
+                      // Padding añade espacio alrededor de su hijo (Text del mensaje).
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                        child: Text(
+                        padding: const EdgeInsets.symmetric(horizontal: 20.0), // Espacio horizontal.
+                        child: Text( // Texto que muestra el mensaje de estado (ganó, perdió, etc.).
                           _mensaje,
-                          style: cupertinoTheme.textTheme.textStyle.copyWith(
+                          style: cupertinoTheme.textTheme.textStyle.copyWith( // Estilo del texto.
+                                // Color de texto adaptado al fondo actual para mejor legibilidad.
                                 color: _ganoEnUltimoLanzamiento ? AppColors.textOnGoldBackground : AppColors.textDefault,
-                                fontWeight: _ganoEnUltimoLanzamiento ? FontWeight.bold : FontWeight.w500,
-                                fontSize: 18,
+                                fontWeight: _ganoEnUltimoLanzamiento ? FontWeight.bold : FontWeight.w500, // Peso de la fuente.
+                                fontSize: 18, // Tamaño de fuente.
                               ),
-                          textAlign: TextAlign.center,
+                          textAlign: TextAlign.center, // Alineación del texto.
                         ),
                       ),
-                      const Spacer(),
+                      const Spacer(), // Otro Spacer para empujar el botón hacia la parte inferior.
+
+                      // Padding para el botón, principalmente para darle espacio en la parte inferior de la pantalla.
                       Padding(
                         padding: const EdgeInsets.only(bottom: 30.0),
-                        child: CupertinoButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: _estaLanzando ? null : _lanzarDado,
-                          child: Container(
-                            width: 80, height: 80,
+                        child: CupertinoButton( // Botón de estilo iOS.
+                          padding: EdgeInsets.zero, // Quita el padding por defecto del CupertinoButton.
+                          onPressed: _estaLanzando ? null : _lanzarDado, // Llama a _lanzarDado o se deshabilita.
+                          child: Container( // Container para darle forma y estilo al botón.
+                            width: 80, height: 80, // Tamaño del botón.
                             decoration: BoxDecoration(
-                              color: _estaLanzando ? AppColors.buttonDisabled : AppColors.buttonPrimary,
-                              shape: BoxShape.circle,
-                              boxShadow: [
+                              color: _estaLanzando ? AppColors.buttonDisabled : AppColors.buttonPrimary, // Color dinámico.
+                              shape: BoxShape.circle, // Forma circular.
+                              boxShadow: [ // Sombra del botón.
                                 BoxShadow(
-                                  color: colorSombraBoton,
-                                  spreadRadius: 1, blurRadius: 6, offset: const Offset(0, 3),
+                                  color: colorSombraBoton, // Color de la sombra (definido en el build).
+                                  spreadRadius: 1,
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
+                            // Contenido del botón: un indicador de carga o un ícono.
                             child: _estaLanzando
-                                ? const CupertinoActivityIndicator(color: AppColors.activityIndicator)
-                                : const Icon(CupertinoIcons.arrow_2_circlepath, color: AppColors.textLight, size: 40),
+                                ? const CupertinoActivityIndicator(color: AppColors.activityIndicator) // Si está lanzando.
+                                : const Icon(CupertinoIcons.arrow_2_circlepath, color: AppColors.textLight, size: 40), // Ícono de refrescar.
                           ),
                         ),
                       ),
@@ -287,11 +313,6 @@ class _EstadoPantallaDado extends State<PantallaDado> with TickerProviderStateMi
                 ),
               ),
             ),
-            // Por defecto, AnimatedSwitcher usa FadeTransition, lo cual es bueno para este caso.
-            // Si quisieras otra animación, la definirías con `transitionBuilder`.
-            // transitionBuilder: (Widget child, Animation<double> animation) {
-            //   return FadeTransition(opacity: animation, child: child);
-            // },
           ),
           // Widget para mostrar la animación de confeti.
           ConfettiWidget(

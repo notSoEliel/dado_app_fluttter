@@ -60,9 +60,12 @@ class AplicacionDado extends StatelessWidget {
       // Tema global de Cupertino que define la apariencia visual por defecto.
       theme: CupertinoThemeData(
         brightness: Brightness.light, // Tema claro.
-        scaffoldBackgroundColor: AppColors.neutralBackground, // Color de fondo para las pantallas.
-        primaryColor: AppColors.buttonPrimary, // Color de acento principal para widgets interactivos.
-        primaryContrastingColor: AppColors.textLight, // Color para texto/iconos sobre `primaryColor`.
+        scaffoldBackgroundColor:
+            AppColors.neutralBackground, // Color de fondo para las pantallas.
+        primaryColor: AppColors
+            .buttonPrimary, // Color de acento principal para widgets interactivos.
+        primaryContrastingColor: AppColors
+            .textLight, // Color para texto/iconos sobre `primaryColor`.
 
         // Estilos de texto por defecto.
         textTheme: CupertinoTextThemeData(

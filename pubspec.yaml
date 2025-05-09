@@ -18,9 +18,19 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^2.0.0
+  flutter_launcher_icons: "^0.14.3"
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true  # Generar iconos para Android (o "launcher_icon")
+  ios: true      # Generar iconos para iOS
+  image_path: "assets/images/logo_app_dado.jpeg" # Ruta a tu imagen de logo
+  # Opcional: si tu imagen ya tiene el formato adaptativo de Android Oreo+
+  # adaptive_icon_background: "#ffffff" # Color de fondo para iconos adaptativos
+  # adaptive_icon_foreground: "assets/images/logo_foreground.png" # Imagen de primer plano para iconos adaptativos
+  min_sdk_android: 21 # Opcional: SDK mínimo de Android
 
   assets:
     - assets/images/

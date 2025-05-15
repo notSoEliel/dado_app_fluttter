@@ -63,7 +63,7 @@ class _EstadoPantallaDado extends State<PantallaDado>
     );
 
     // Definición de la animación de escala.
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.25)
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.5)
         .chain(CurveTween(curve: Curves.easeInOut))
         .animate(_scaleController);
 
@@ -246,10 +246,8 @@ class _EstadoPantallaDado extends State<PantallaDado>
           // AnimatedSwitcher se encargará de la transición entre los fondos.
           AnimatedSwitcher(
             duration: _forzarReseteoInstantaneoFondo
-                ? Duration
-                    .zero // Transición instantánea si se fuerza el reseteo.
-                : const Duration(
-                    milliseconds: 600), // Duración normal del fundido.
+                ? Duration.zero // Transición instantánea si se fuerza el reseteo.
+                : const Duration(milliseconds: 600), // Duración normal del fundido.
             // El child del AnimatedSwitcher. La Key es importante para que detecte el cambio.
             // Usamos ValueKey(_ganoEnUltimoLanzamiento) para que cambie cuando el estado de victoria cambie.
             child: Container(

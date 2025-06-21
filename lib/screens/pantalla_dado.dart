@@ -2,12 +2,24 @@ import 'dart:math'; // Para generar números aleatorios.
 import 'package:flutter/cupertino.dart'; // Widgets y temas de estilo iOS.
 import 'package:flutter_svg/flutter_svg.dart'; // Para renderizar imágenes SVG.
 import 'package:confetti/confetti.dart'; // Para la animación de confeti al ganar.
+import 'dart:convert'; // Para usar jsonEncode y jsonDecode
+import 'package:http/http.dart' as http; // Para usar http.post
 import '../main.dart'; // Importar AppColors y configuraciones globales desde main.dart.
+import 'pantalla_login.dart'; // Importar la pantalla de login para navegación.
 
 // PantallaDado: El widget principal para la interfaz del juego de dados.
 // Es un StatefulWidget porque su apariencia y datos cambian durante la interacción del usuario.
 class PantallaDado extends StatefulWidget {
-  const PantallaDado({super.key});
+  final int usuarioId;
+  final String nombre;
+  final int puntosIniciales;
+
+  const PantallaDado({
+    super.key,
+    required this.usuarioId,
+    required this.nombre,
+    required this.puntosIniciales,
+  });
 
   @override
   State<PantallaDado> createState() => _EstadoPantallaDado();
@@ -21,6 +33,8 @@ class _EstadoPantallaDado extends State<PantallaDado>
   // --- Variables de Estado ---
   // Estas variables almacenan datos que, cuando cambian (usando setState),
   // provocan que la UI se reconstruya para reflejar los nuevos valores.
+
+  late int _puntos;
 
   int _resultadoDado =
       1; // Almacena el número (1-6) del último lanzamiento del dado.
@@ -54,6 +68,8 @@ class _EstadoPantallaDado extends State<PantallaDado>
   @override
   void initState() {
     super.initState(); // Siempre llamar a super.initState() primero.
+
+    _puntos = widget.puntosIniciales;
 
     //Inicializacion del cotrolador de animación de escala del dado.
     _scaleController = AnimationController(
@@ -132,56 +148,77 @@ class _EstadoPantallaDado extends State<PantallaDado>
     }
   }
 
-  // _lanzarDado: Contiene la lógica principal para cuando el usuario presiona el botón de lanzar.
-  void _lanzarDado() {
-    // Si ya hay un lanzamiento en curso (_estaLanzando es true), no hacer nada.
-    if (_estaLanzando) return;
+  /// Lógica principal para lanzar el dado cuando el usuario presiona el botón.
+  ///
+  /// - Si el usuario no tiene suficientes puntos o ya está lanzando, no hace nada.
+  /// - Cambia el estado a "lanzando", muestra mensaje y resetea animaciones si es necesario.
+  /// - Envía una petición HTTP al backend para obtener el resultado del dado y los puntos actualizados.
+  /// - Si el resultado es 6, muestra confeti y mensaje especial.
+  /// - Si ocurre un error, muestra mensaje de error.
+  void _lanzarDado() async {
+    if (_estaLanzando || _puntos < 100)
+      return; // Evita lanzar si ya está lanzando o no hay puntos suficientes.
 
-    // Iniciar el proceso de lanzamiento: actualizar estado y UI.
     setState(() {
-      _estaLanzando = true; // Indicar que el lanzamiento ha comenzado.
-      _mensaje = "Lanzando..."; // Mensaje para el usuario.
-
-      // Si el lanzamiento anterior fue una victoria, se activa la bandera para resetear
-      // el fondo a gris de forma instantánea, sin animación de "salida" del dorado.
+      _estaLanzando = true; // Indica que está lanzando el dado.
+      _mensaje = "Lanzando..."; // Mensaje temporal.
       if (_ganoEnUltimoLanzamiento) {
-        _forzarReseteoInstantaneoFondo = true;
+        _forzarReseteoInstantaneoFondo = true; // Resetea fondo si ganó antes.
       }
-      _ganoEnUltimoLanzamiento =
-          false; // El nuevo lanzamiento aún no es una victoria.
-
-      // Si el confeti estaba activo, detenerlo.
+      _ganoEnUltimoLanzamiento = false;
       if (_confettiController.state == ConfettiControllerState.playing) {
-        _confettiController.stop();
+        _confettiController.stop(); // Detiene confeti si estaba activo.
       }
     });
 
-    // Iniciar la animación de sacudida del dado.
-    // El código dentro de 'whenComplete' se ejecuta cuando la animación de sacudida termina.
+    // Inicia animaciones de sacudida y escala del dado.
     _shakeController.forward(from: 0.0);
     _scaleController.forward(from: 0.0).then((_) => _scaleController.reverse());
 
-    _shakeController.forward(from: 0.0).whenComplete(() {
-      final random =
-          Random(); // Crear una instancia para generar números aleatorios.
-      _resultadoDado = random.nextInt(6) + 1; // Genera un entero entre 1 y 6.
-      _ganoEnUltimoLanzamiento = (_resultadoDado ==
-          6); // Determina si este lanzamiento es una victoria.
+    try {
+      // Envía petición POST al backend para lanzar el dado.
+      final response = await http.post(
+        // Uri.parse('http://localhost:8000/lanzar_dado'),
+        Uri.parse(
+            'http://10.0.2.2:8000/lanzar_dado'), // Cambia esto si usas un emulador
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'usuario_id': widget.usuarioId}),
+      );
 
-      // Actualizar el mensaje y activar confeti si se ganó.
-      if (_ganoEnUltimoLanzamiento) {
-        _mensaje = "¡VAYA CRACK! ¡Sacaste un 6!";
-        _confettiController.play(); // Iniciar animación de confeti.
+      if (response.statusCode == 200) {
+        // Si la respuesta es exitosa, actualiza el resultado y los puntos.
+        final data = jsonDecode(response.body);
+        final resultado = data['resultado']; // Número que salió en el dado.
+        final puntos =
+            data['puntos_actuales']; // Puntos actualizados del usuario.
+
+        setState(() {
+          _resultadoDado = resultado;
+          _puntos = puntos;
+          _ganoEnUltimoLanzamiento = (resultado == 6); // ¿Ganó?
+          _mensaje = _ganoEnUltimoLanzamiento
+              ? "¡VAYA CRACK! ¡Sacaste un 6!" // Mensaje especial si gana
+              : "Sacaste un $resultado. ¡Suerte la próxima!";
+          if (_ganoEnUltimoLanzamiento) {
+            _confettiController.play(); // Activa confeti si ganó
+          }
+        });
       } else {
-        _mensaje = "Sacaste un $_resultadoDado. ¡Suerte la próxima!";
+        // Si hay error en la respuesta, muestra mensaje de error.
+        setState(() {
+          _mensaje = "Error al lanzar dado. Intenta de nuevo.";
+        });
       }
-
-      // Finalizar el estado de lanzamiento y actualizar la UI con el resultado.
-      // Este setState es crucial para que la UI refleje el _resultadoDado y _ganoEnUltimoLanzamiento.
+    } catch (e) {
+      // Si ocurre un error de conexión, muestra mensaje de error.
       setState(() {
-        _estaLanzando = false;
+        _mensaje = "Error de conexión con el servidor.";
       });
-    });
+    } finally {
+      setState(() {
+        _estaLanzando = false; // Permite volver a lanzar.
+      });
+    }
   }
 
   // _construirImagenDado2D: Construye y devuelve el widget que muestra la imagen SVG del dado.
@@ -191,16 +228,20 @@ class _EstadoPantallaDado extends State<PantallaDado>
 
     return ScaleTransition(
       scale: _scaleAnimation, // Aplica la animación de escala al dado.
-      child: RotationTransition( // Aplica la animación de sacudida al dado.
+      child: RotationTransition(
+        // Aplica la animación de sacudida al dado.
         turns: _shakeAnimation, // La animación de sacudida se aplica aquí.
-        child: SvgPicture.asset( // Cargar la imagen SVG del dado.
+        child: SvgPicture.asset(
+          // Cargar la imagen SVG del dado.
           svgPath, // Ruta del archivo SVG.
           height: 180, // Altura del dado.
           width: 180, // Ancho del dado.
-          placeholderBuilder: (context) => Container(// Placeholder mientras se carga la imagen.
+          placeholderBuilder: (context) => Container(
+            // Placeholder mientras se carga la imagen.
             height: 180, width: 180, // Dimensiones del contenedor.
             padding: const EdgeInsets.all(30.0), // Espacio interno.
-            child: const CupertinoActivityIndicator(color: AppColors.activityIndicator), // Indicador de carga.
+            child: const CupertinoActivityIndicator(
+                color: AppColors.activityIndicator), // Indicador de carga.
           ),
         ),
       ),
@@ -246,152 +287,196 @@ class _EstadoPantallaDado extends State<PantallaDado>
           // AnimatedSwitcher se encargará de la transición entre los fondos.
           AnimatedSwitcher(
             duration: _forzarReseteoInstantaneoFondo
-                ? Duration.zero // Transición instantánea si se fuerza el reseteo.
-                : const Duration(milliseconds: 600), // Duración normal del fundido.
+                ? Duration
+                    .zero // Transición instantánea si se fuerza el reseteo.
+                : const Duration(
+                    milliseconds: 600), // Duración normal del fundido.
             // El child del AnimatedSwitcher. La Key es importante para que detecte el cambio.
             // Usamos ValueKey(_ganoEnUltimoLanzamiento) para que cambie cuando el estado de victoria cambie.
             child: Container(
-              key: ValueKey<bool>(
-                  _ganoEnUltimoLanzamiento), // Cambio de Key dispara la animación.
-              width: double
-                  .infinity, // Asegura que el container ocupe toda la pantalla.
-              height: double.infinity,
-              decoration:
-                  _crearDecoracionFondo(), // Aplica la decoración actual (gris o dorada).
-              // El contenido de la pantalla va DENTRO del Container que se anima.
-              // El child del AnimatedSwitcher (y por ende del Container con el fondo) es el contenido principal de la pantalla.
-              child: SafeArea(
-                // SafeArea asegura que el contenido no sea obstruido por elementos del sistema
-                // como el notch del teléfono, la barra de estado o los gestos de navegación.
-                child: Center(
-                  // Centra a su hijo (Column) en el espacio disponible del SafeArea.
-                  child: Column(
-                    // Column organiza a sus hijos en una lista vertical.
-                    mainAxisAlignment: MainAxisAlignment
-                        .center, // Alinea los hijos verticalmente en el centro de la Column.
-                    children: <Widget>[
-                      // Spacer es un widget flexible que ocupa el espacio disponible,
-                      // útil para empujar otros widgets o distribuir espacio. Aquí empuja el contenido hacia el centro.
-                      const Spacer(),
+                key: ValueKey<bool>(
+                    _ganoEnUltimoLanzamiento), // Cambio de Key dispara la animación.
+                width: double
+                    .infinity, // Asegura que el container ocupe toda la pantalla.
+                height: double.infinity,
+                decoration:
+                    _crearDecoracionFondo(), // Aplica la decoración actual (gris o dorada).
+                // El contenido de la pantalla va DENTRO del Container que se anima.
+                // El child del AnimatedSwitcher (y por ende del Container con el fondo) es el contenido principal de la pantalla.
+                child: Stack(
+                  children: [
+                    SafeArea(
+                      // SafeArea asegura que el contenido no sea obstruido por elementos del sistema
+                      // como el notch del teléfono, la barra de estado o los gestos de navegación.
+                      child: Center(
+                        // Centra a su hijo (Column) en el espacio disponible del SafeArea.
+                        child: Column(
+                          // Column organiza a sus hijos en una lista vertical.
+                          mainAxisAlignment: MainAxisAlignment
+                              .center, // Alinea los hijos verticalmente en el centro de la Column.
+                          children: <Widget>[
+                            // Spacer es un widget flexible que ocupa el espacio disponible,
+                            // útil para empujar otros widgets o distribuir espacio. Aquí empuja el contenido hacia el centro.
+                            const Spacer(),
 
-                      // Container que muestra el número resultante del dado.
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 12), // Espacio interno.
-                        decoration: BoxDecoration(
-                          // Estilo visual del contenedor.
-                          color:
-                              colorBlancoSemiOpaco, // Color de fondo (definido en el build).
-                          borderRadius:
-                              BorderRadius.circular(15), // Bordes redondeados.
-                          boxShadow: [
-                            // Sombra para dar efecto de profundidad.
-                            BoxShadow(
-                              color:
-                                  colorSombraNegra, // Color de la sombra (definido en el build).
-                              spreadRadius: 1, // Cuánto se expande la sombra.
-                              blurRadius: 8, // Cuán difuminada es la sombra.
-                              offset: const Offset(0,
-                                  4), // Desplazamiento de la sombra (horizontal, vertical).
+                            // Container que muestra el número resultante del dado.
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 24,
+                                  vertical: 12), // Espacio interno.
+                              decoration: BoxDecoration(
+                                // Estilo visual del contenedor.
+                                color:
+                                    colorBlancoSemiOpaco, // Color de fondo (definido en el build).
+                                borderRadius: BorderRadius.circular(
+                                    15), // Bordes redondeados.
+                                boxShadow: [
+                                  // Sombra para dar efecto de profundidad.
+                                  BoxShadow(
+                                    color:
+                                        colorSombraNegra, // Color de la sombra (definido en el build).
+                                    spreadRadius:
+                                        1, // Cuánto se expande la sombra.
+                                    blurRadius:
+                                        8, // Cuán difuminada es la sombra.
+                                    offset: const Offset(0,
+                                        4), // Desplazamiento de la sombra (horizontal, vertical).
+                                  ),
+                                ],
+                              ),
+                              // Texto que muestra el número del dado y los puntos actuales.
+                              child: Column(
+                                children: [
+                                  Text(
+                                    _estaLanzando ? "?" : '$_resultadoDado',
+                                    style: cupertinoTheme
+                                        .textTheme.navLargeTitleTextStyle
+                                        .copyWith(
+                                      fontSize: 40,
+                                      color: _ganoEnUltimoLanzamiento
+                                          ? AppColors.diceNumberGold
+                                          : AppColors.textDefault,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    "Puntos: $_puntos",
+                                    style: cupertinoTheme.textTheme.textStyle
+                                        .copyWith(
+                                      fontSize: 16,
+                                      color: CupertinoColors.systemGrey,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(
+                                height:
+                                    40), // Un espacio vertical fijo de 40 píxeles.
+
+                            // Expanded hace que su hijo (_construirImagenDado2D) ocupe el espacio vertical disponible
+                            // dentro de la Column, según su factor de 'flex'.
+                            Expanded(
+                                flex:
+                                    3, // Proporción del espacio que este Expanded debe ocupar en relación a otros Expanded.
+                                child:
+                                    _construirImagenDado2D() // Widget que muestra la imagen del dado.
+                                ),
+                            const SizedBox(
+                                height: 20), // Otro espacio vertical fijo.
+
+                            // Padding añade espacio alrededor de su hijo (Text del mensaje).
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 20.0), // Espacio horizontal.
+                              child: Text(
+                                // Texto que muestra el mensaje de estado (ganó, perdió, etc.).
+                                _mensaje,
+                                style:
+                                    cupertinoTheme.textTheme.textStyle.copyWith(
+                                  // Estilo del texto.
+                                  // Color de texto adaptado al fondo actual para mejor legibilidad.
+                                  color: _ganoEnUltimoLanzamiento
+                                      ? AppColors.textOnGoldBackground
+                                      : AppColors.textDefault,
+                                  fontWeight: _ganoEnUltimoLanzamiento
+                                      ? FontWeight.bold
+                                      : FontWeight.w500, // Peso de la fuente.
+                                  fontSize: 18, // Tamaño de fuente.
+                                ),
+                                textAlign:
+                                    TextAlign.center, // Alineación del texto.
+                              ),
+                            ),
+                            const Spacer(), // Otro Spacer para empujar el botón hacia la parte inferior.
+
+                            // Padding para el botón, principalmente para darle espacio en la parte inferior de la pantalla.
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 30.0),
+                              child: CupertinoButton(
+                                // Botón de estilo iOS.
+                                padding: EdgeInsets
+                                    .zero, // Quita el padding por defecto del CupertinoButton.
+                                onPressed: _estaLanzando
+                                    ? null
+                                    : _lanzarDado, // Llama a _lanzarDado o se deshabilita.
+                                child: Container(
+                                  // Container para darle forma y estilo al botón.
+                                  width: 80, height: 80, // Tamaño del botón.
+                                  decoration: BoxDecoration(
+                                    color: _estaLanzando
+                                        ? AppColors.buttonDisabled
+                                        : AppColors
+                                            .buttonPrimary, // Color dinámico.
+                                    shape: BoxShape.circle, // Forma circular.
+                                    boxShadow: [
+                                      // Sombra del botón.
+                                      BoxShadow(
+                                        color:
+                                            colorSombraBoton, // Color de la sombra (definido en el build).
+                                        spreadRadius: 1,
+                                        blurRadius: 6,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  // Contenido del botón: un indicador de carga o un ícono.
+                                  child: _estaLanzando
+                                      ? const CupertinoActivityIndicator(
+                                          color: AppColors
+                                              .activityIndicator) // Si está lanzando.
+                                      : const Icon(
+                                          CupertinoIcons.arrow_2_circlepath,
+                                          color: AppColors.textLight,
+                                          size: 40), // Ícono de refrescar.
+                                ),
+                              ),
                             ),
                           ],
                         ),
-                        // Texto que muestra el número del dado o "?" si está lanzando.
-                        child: Text(
-                          _estaLanzando ? "?" : '$_resultadoDado',
-                          style: cupertinoTheme.textTheme.navLargeTitleTextStyle
-                              .copyWith(
-                            // Estilo del texto.
-                            fontSize: 40, // Tamaño de fuente personalizado.
-                            // Color del número: dorado si ganó, sino el color de texto por defecto.
-                            color: _ganoEnUltimoLanzamiento
-                                ? AppColors.diceNumberGold
-                                : AppColors.textDefault,
-                          ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 60,
+                      right: 20,
+                      child: CupertinoButton(
+                        padding: EdgeInsets.zero,
+                        onPressed: () {
+                          Navigator.pushReplacement(
+                            context,
+                            CupertinoPageRoute(
+                                builder: (context) => const PantallaLogin()),
+                          );
+                        },
+                        child: const Icon(
+                          CupertinoIcons.square_arrow_left,
+                          color: AppColors.buttonPrimary,
+                          size: 28,
                         ),
                       ),
-                      const SizedBox(
-                          height:
-                              40), // Un espacio vertical fijo de 40 píxeles.
-
-                      // Expanded hace que su hijo (_construirImagenDado2D) ocupe el espacio vertical disponible
-                      // dentro de la Column, según su factor de 'flex'.
-                      Expanded(
-                          flex:
-                              3, // Proporción del espacio que este Expanded debe ocupar en relación a otros Expanded.
-                          child:
-                              _construirImagenDado2D() // Widget que muestra la imagen del dado.
-                          ),
-                      const SizedBox(height: 20), // Otro espacio vertical fijo.
-
-                      // Padding añade espacio alrededor de su hijo (Text del mensaje).
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 20.0), // Espacio horizontal.
-                        child: Text(
-                          // Texto que muestra el mensaje de estado (ganó, perdió, etc.).
-                          _mensaje,
-                          style: cupertinoTheme.textTheme.textStyle.copyWith(
-                            // Estilo del texto.
-                            // Color de texto adaptado al fondo actual para mejor legibilidad.
-                            color: _ganoEnUltimoLanzamiento
-                                ? AppColors.textOnGoldBackground
-                                : AppColors.textDefault,
-                            fontWeight: _ganoEnUltimoLanzamiento
-                                ? FontWeight.bold
-                                : FontWeight.w500, // Peso de la fuente.
-                            fontSize: 18, // Tamaño de fuente.
-                          ),
-                          textAlign: TextAlign.center, // Alineación del texto.
-                        ),
-                      ),
-                      const Spacer(), // Otro Spacer para empujar el botón hacia la parte inferior.
-
-                      // Padding para el botón, principalmente para darle espacio en la parte inferior de la pantalla.
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 30.0),
-                        child: CupertinoButton(
-                          // Botón de estilo iOS.
-                          padding: EdgeInsets
-                              .zero, // Quita el padding por defecto del CupertinoButton.
-                          onPressed: _estaLanzando
-                              ? null
-                              : _lanzarDado, // Llama a _lanzarDado o se deshabilita.
-                          child: Container(
-                            // Container para darle forma y estilo al botón.
-                            width: 80, height: 80, // Tamaño del botón.
-                            decoration: BoxDecoration(
-                              color: _estaLanzando
-                                  ? AppColors.buttonDisabled
-                                  : AppColors.buttonPrimary, // Color dinámico.
-                              shape: BoxShape.circle, // Forma circular.
-                              boxShadow: [
-                                // Sombra del botón.
-                                BoxShadow(
-                                  color:
-                                      colorSombraBoton, // Color de la sombra (definido en el build).
-                                  spreadRadius: 1,
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            // Contenido del botón: un indicador de carga o un ícono.
-                            child: _estaLanzando
-                                ? const CupertinoActivityIndicator(
-                                    color: AppColors
-                                        .activityIndicator) // Si está lanzando.
-                                : const Icon(CupertinoIcons.arrow_2_circlepath,
-                                    color: AppColors.textLight,
-                                    size: 40), // Ícono de refrescar.
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+                    ),
+                  ],
+                )),
           ),
           // Widget para mostrar la animación de confeti.
           ConfettiWidget(

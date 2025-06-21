@@ -5,7 +5,7 @@
 */
 
 import 'package:flutter/cupertino.dart';
-import 'screens/pantalla_dado.dart';
+import 'screens/pantalla_login.dart';
 
 // Define la paleta de colores centralizada para la aplicación.
 class AppColors {
@@ -93,7 +93,7 @@ class AplicacionDado extends StatelessWidget {
           ),
         ),
       ),
-      home: const PantallaDado(), // Pantalla inicial.
+      home: const PantallaLogin(), // Pantalla de login (login).
     );
   }
 }

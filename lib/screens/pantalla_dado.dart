@@ -1,9 +1,9 @@
-import 'dart:math'; // Para generar números aleatorios.
 import 'package:flutter/cupertino.dart'; // Widgets y temas de estilo iOS.
 import 'package:flutter_svg/flutter_svg.dart'; // Para renderizar imágenes SVG.
 import 'package:confetti/confetti.dart'; // Para la animación de confeti al ganar.
 import 'dart:convert'; // Para usar jsonEncode y jsonDecode
 import 'package:http/http.dart' as http; // Para usar http.post
+import 'dart:async'; // Para el Timer
 import '../main.dart'; // Importar AppColors y configuraciones globales desde main.dart.
 import 'pantalla_login.dart'; // Importar la pantalla de login para navegación.
 
@@ -29,12 +29,13 @@ class PantallaDado extends StatefulWidget {
 // 'with TickerProviderStateMixin' es necesario para que este estado pueda proveer Tickers
 // a los AnimationController, que son esenciales para las animaciones.
 class _EstadoPantallaDado extends State<PantallaDado>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   // --- Variables de Estado ---
   // Estas variables almacenan datos que, cuando cambian (usando setState),
   // provocan que la UI se reconstruya para reflejar los nuevos valores.
 
   late int _puntos;
+  late String _nombre; // Almacena el nombre del usuario para mostrarlo en la UI
 
   int _resultadoDado =
       1; // Almacena el número (1-6) del último lanzamiento del dado.
@@ -63,6 +64,8 @@ class _EstadoPantallaDado extends State<PantallaDado>
   late ConfettiController
       _confettiController; // Controla la animación de confeti.
 
+  Timer? _timerPuntos; // Timer para el polling de puntos
+
   // initState: Se llama una única vez cuando este objeto State se crea e inserta en el árbol de widgets.
   // Es el lugar ideal para inicializaciones que solo necesitan ocurrir una vez.
   @override
@@ -70,6 +73,7 @@ class _EstadoPantallaDado extends State<PantallaDado>
     super.initState(); // Siempre llamar a super.initState() primero.
 
     _puntos = widget.puntosIniciales;
+    _nombre = widget.nombre; // Inicializa el nombre desde el widget
 
     //Inicializacion del cotrolador de animación de escala del dado.
     _scaleController = AnimationController(
@@ -107,16 +111,41 @@ class _EstadoPantallaDado extends State<PantallaDado>
     _confettiController = ConfettiController(
         duration:
             const Duration(seconds: 1)); // Duración de la explosión de confeti.
+
+    WidgetsBinding.instance
+        .addObserver(this); // Observa el ciclo de vida de la app
+    _iniciarPollingPuntos(); // Inicia el polling al cargar la pantalla
   }
 
   // dispose: Se llama cuando este objeto State se elimina permanentemente del árbol de widgets.
   // Es crucial liberar los recursos de los controladores aquí para evitar fugas de memoria.
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // Deja de observar
+    _timerPuntos?.cancel(); // Cancela el polling al salir de la pantalla
     _scaleController.dispose();
     _shakeController.dispose();
     _confettiController.dispose();
     super.dispose(); // Siempre llamar a super.dispose() al final.
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _timerPuntos
+          ?.cancel(); // Detiene el polling si la app está en segundo plano
+    } else if (state == AppLifecycleState.resumed) {
+      _iniciarPollingPuntos(); // Reinicia el polling al volver a primer plano
+    }
+  }
+
+  /// Inicia un polling que actualiza los puntos cada 1.5 segundos
+  void _iniciarPollingPuntos() {
+    _timerPuntos?.cancel();
+    _timerPuntos = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
+      _refrescarPuntos();
+    });
   }
 
   // _crearDecoracionFondo: Devuelve un BoxDecoration para el fondo de la pantalla.
@@ -156,8 +185,14 @@ class _EstadoPantallaDado extends State<PantallaDado>
   /// - Si el resultado es 6, muestra confeti y mensaje especial.
   /// - Si ocurre un error, muestra mensaje de error.
   void _lanzarDado() async {
-    if (_estaLanzando || _puntos < 100)
-      return; // Evita lanzar si ya está lanzando o no hay puntos suficientes.
+    if (_estaLanzando) return;
+
+    await _refrescarPuntos();
+
+    if (_puntos < 100) {
+      _mostrarPopupPuntosInsuficientes();
+      return;
+    }
 
     setState(() {
       _estaLanzando = true; // Indica que está lanzando el dado.
@@ -219,6 +254,44 @@ class _EstadoPantallaDado extends State<PantallaDado>
         _estaLanzando = false; // Permite volver a lanzar.
       });
     }
+  }
+
+  // Refresca los puntos actuales del usuario desde el backend
+  Future<void> _refrescarPuntos() async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+            'http://10.0.2.2:8000/obtener_puntos?usuario_id=${widget.usuarioId}'),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _puntos = data['puntos_actuales'];
+        });
+      }
+    } catch (e) {
+      // Manejo de errores al refrescar puntos
+      setState(() {
+        _mensaje = "Error al obtener puntos. Intenta de nuevo.";
+      });
+    }
+  }
+
+  // Variable para controlar si se muestra el popup de puntos insuficientes
+  bool _mostrarPopupPuntos = false;
+
+  // Función para mostrar el popup temporal de puntos insuficientes
+  void _mostrarPopupPuntosInsuficientes() {
+    setState(() {
+      _mostrarPopupPuntos = true;
+    });
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _mostrarPopupPuntos = false;
+        });
+      }
+    });
   }
 
   // _construirImagenDado2D: Construye y devuelve el widget que muestra la imagen SVG del dado.
@@ -360,7 +433,7 @@ class _EstadoPantallaDado extends State<PantallaDado>
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    "Puntos: $_puntos",
+                                    "Bienvenid@ $_nombre, le quedan: $_puntos puntos",
                                     style: cupertinoTheme.textTheme.textStyle
                                         .copyWith(
                                       fontSize: 16,
@@ -489,6 +562,59 @@ class _EstadoPantallaDado extends State<PantallaDado>
             emissionFrequency: 0.03, // Frecuencia de emisión.
             colors: AppColors.confettiColors, // Colores del confeti.
           ),
+          // Popup de puntos insuficientes
+          if (_mostrarPopupPuntos)
+            Positioned.fill(
+              child: Container(
+                color: CupertinoColors.black.withValues(alpha: 0.7),
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 40, vertical: 20),
+                    decoration: BoxDecoration(
+                      color: CupertinoColors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          "¡Ups!",
+                          style: cupertinoTheme.textTheme.navTitleTextStyle
+                              .copyWith(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textDefault,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          "No tienes suficientes puntos para lanzar el dado.",
+                          style: cupertinoTheme.textTheme.textStyle.copyWith(
+                            fontSize: 16,
+                            color: CupertinoColors.systemGrey,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        CupertinoButton(
+                          onPressed: () {
+                            setState(() {
+                              _mostrarPopupPuntos = false;
+                            });
+                          },
+                          color: AppColors.buttonPrimary,
+                          child: const Text(
+                            "Entendido",
+                            style: TextStyle(color: CupertinoColors.white),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

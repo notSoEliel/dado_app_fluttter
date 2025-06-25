@@ -53,6 +53,7 @@ class _PantallaLoginState extends State<PantallaLogin> {
         final data = jsonDecode(response.body);
         // Navega a la pantalla principal del dado, pasando los datos del usuario
         Navigator.pushReplacement(
+          // ignore: use_build_context_synchronously
           context,
           CupertinoPageRoute(
             builder: (context) => PantallaDado(

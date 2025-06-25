@@ -7,10 +7,14 @@ Una aplicación en Flutter que permite a los usuarios autenticarse (login sin re
 ## ✨ Características
 
 - **Login Simple** con conexión al backend.
-- **Lanzamiento de Dado Aleatorio** (local, con animación).
+- **Lanzamiento de Dado Aleatorio** (con animación y validación de puntos en tiempo real).
 - **Interfaz Cupertino (iOS-like)**.
-- **Registro de Puntos** vía API REST.
+- **Registro y Consulta de Puntos** vía API REST.
 - **Animaciones**: sacudida del dado, fondo dorado, confeti.
+- **Actualización automática de puntos** cada 1.5 segundos (polling), incluso si los puntos cambian en la base de datos.
+- **Sincronización de puntos antes de lanzar**: la app consulta el backend antes de cada lanzamiento para evitar inconsistencias.
+- **Popup de advertencia** si no tienes puntos suficientes para lanzar.
+- **Botón de lanzar siempre activo** (la lógica de puntos se controla internamente).
 
 ---
 
@@ -21,8 +25,8 @@ flutter_app/
 ├── lib/
 │   ├── main.dart
 │   └── screens/
-│       ├── login_screen.dart
-│       └── dado_screen.dart
+│       ├── pantalla_login.dart
+│       └── pantalla_dado.dart
 ├── assets/images/
 ├── pubspec.yaml
 └── README.md
@@ -45,12 +49,15 @@ dependencies:
 ## 📡 Comunicación con el Backend
 
  • Login:
- • POST a http://localhost:8000/login
- • Envío de username/contraseña
+   - POST a http://localhost:8000/login
+   - Envío de username/contraseña
  • Lanzar dado:
- • POST a http://localhost:8000/lanzar_dado
- • Envío de usuario_id
- • Devuelve el resultado (1–6) y los puntos actualizados
+   - POST a http://localhost:8000/lanzar_dado
+   - Envío de usuario_id
+   - Devuelve el resultado (1–6) y los puntos actualizados
+ • Obtener puntos actuales:
+   - GET a http://localhost:8000/obtener_puntos?usuario_id=ID
+   - Devuelve los puntos actuales del usuario
 
 Nota: Usa 10.0.2.2 en lugar de localhost si corres en un emulador Android. Esto aplica para acceder al backend desde un emulador Android, ya que localhost se refiere al emulador mismo.
 
